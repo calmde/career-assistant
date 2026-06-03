@@ -1,10 +1,22 @@
-# clean_data.py
-import pandas as pd
+"""
+数据清洗与入库 — 将爬取的岗位数据清洗后写入 SQLite。
+
+纯标准库实现（sqlite3），不依赖 pandas。
+"""
 import sqlite3
 import re
+import os
+import logging
 from datetime import datetime
 
-def parse_salary(salary_str):
+logger = logging.getLogger(__name__)
+
+# 与 app.py / seed_data.py 保持一致的数据库路径
+DEFAULT_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "jobs.db")
+
+
+def parse_salary(salary_str: str) -> tuple[float | None, float | None, float | None]:
+    """解析薪资字符串，返回 (min, max, avg)。"""
     if not salary_str:
         return None, None, None
     match = re.search(r"(\d+\.?\d*)\s*-\s*(\d+\.?\d*)\s*K", salary_str, re.IGNORECASE)
@@ -15,41 +27,96 @@ def parse_salary(salary_str):
         return low, high, avg
     return None, None, None
 
-def clean_and_store(jobs_list, db_path="jobs.db"):
+
+def _ensure_list_field(value) -> str:
+    """将列表字段转为逗号分隔的字符串。"""
+    if isinstance(value, list):
+        return ", ".join(str(v) for v in value)
+    if value is None:
+        return ""
+    return str(value)
+
+
+def clean_and_store(jobs_list: list[dict], db_path: str | None = None) -> int:
+    """清洗岗位数据并写入 SQLite 数据库。
+
+    Args:
+        jobs_list: 岗位字典列表
+        db_path: 数据库路径，默认使用项目根目录的 jobs.db
+
+    Returns:
+        成功入库的记录数
+    """
     if not jobs_list:
-        print("无数据，跳过入库")
-        return
+        logger.info("无数据，跳过入库")
+        return 0
 
-    df = pd.DataFrame(jobs_list)
-    # 去重
-    df = df.drop_duplicates(subset=["title", "company", "city"])
+    if db_path is None:
+        db_path = DEFAULT_DB_PATH
 
-    # ---- 关键修复：把列表字段转为纯文本 ----
-    if 'skills' in df.columns:
-        df['skills'] = df['skills'].apply(lambda x: ', '.join(x) if isinstance(x, list) else str(x) if pd.notna(x) else '')
-    if 'welfare' in df.columns:
-        df['welfare'] = df['welfare'].apply(lambda x: ', '.join(x) if isinstance(x, list) else str(x) if pd.notna(x) else '')
-    # --------------------------------
+    # ---- 去重 ----
+    seen = set()
+    deduped = []
+    for job in jobs_list:
+        key = (job.get("title", ""), job.get("company", ""), job.get("city", ""))
+        if key not in seen:
+            seen.add(key)
+            deduped.append(job)
 
-    # 解析薪资
-    salary_info = df["salary"].apply(parse_salary)
-    df["salary_min"] = salary_info.apply(lambda x: x[0])
-    df["salary_max"] = salary_info.apply(lambda x: x[1])
-    df["salary_avg"] = salary_info.apply(lambda x: x[2])
-
-    # 填充缺失值
-    df["education"] = df["education"].fillna("学历不限")
-    df["experience"] = df["experience"].fillna("经验不限")
-    if "company_stage" not in df.columns:
-        df["company_stage"] = ""
-    if "contact_person" not in df.columns:
-        df["contact_person"] = ""
-    if "contact_title" not in df.columns:
-        df["contact_title"] = ""
-    df["crawl_time"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
-    # 写入数据库（如果表不存在会自动创建）
+    # ---- 建表（如不存在）----
     conn = sqlite3.connect(db_path)
-    df.to_sql("jobs", conn, if_exists="append", index=False)
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS jobs (
+            title TEXT, company TEXT, salary TEXT, city TEXT, district TEXT,
+            experience TEXT, education TEXT, skills TEXT, company_size TEXT,
+            company_stage TEXT, industry TEXT, welfare TEXT,
+            contact_person TEXT, contact_title TEXT,
+            url TEXT, source TEXT,
+            salary_min REAL, salary_max REAL, salary_avg REAL, crawl_time TEXT
+        )
+    """)
+
+    # ---- 逐条写入 ----
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    inserted = 0
+
+    for job in deduped:
+        salary_min, salary_max, salary_avg = parse_salary(job.get("salary", ""))
+
+        cur.execute(
+            """INSERT INTO jobs
+               (title, company, salary, city, district, experience, education,
+                skills, company_size, company_stage, industry, welfare,
+                contact_person, contact_title, url, source,
+                salary_min, salary_max, salary_avg, crawl_time)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                job.get("title", ""),
+                job.get("company", ""),
+                job.get("salary", ""),
+                job.get("city", ""),
+                job.get("district", ""),
+                job.get("experience", ""),
+                job.get("education", ""),
+                _ensure_list_field(job.get("skills")),
+                job.get("company_size", ""),
+                job.get("company_stage", ""),
+                job.get("industry", ""),
+                _ensure_list_field(job.get("welfare")),
+                job.get("contact_person", ""),
+                job.get("contact_title", ""),
+                job.get("url", ""),
+                job.get("source", ""),
+                salary_min,
+                salary_max,
+                salary_avg,
+                now,
+            ),
+        )
+        inserted += 1
+
+    conn.commit()
     conn.close()
-    print(f"成功入库 {len(df)} 条数据")
+    logger.info("成功入库 %d 条数据", inserted)
+    return inserted

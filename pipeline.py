@@ -11,9 +11,12 @@
 """
 import argparse
 import json
+import logging
 import time
 import os
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 from spider import fetch_jobs
 from clean_data import clean_and_store

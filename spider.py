@@ -6,12 +6,14 @@ BOSS直聘爬虫 — 使用 DrissionPage 浏览器自动化，增强反反爬。
 import time
 import random
 import json
+import logging
 import os
-import pickle
 import io
 import base64
 
-COOKIE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "boss_cookies.pkl")
+logger = logging.getLogger(__name__)
+
+COOKIE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "boss_cookies.json")
 
 CITY_CODE_MAP = {
     "北京": "101010100", "上海": "101020100", "广州": "101280100",
@@ -104,8 +106,8 @@ def fetch_jobs(keyword, city="北京", max_pages=2):
         # 恢复 cookie
         if os.path.exists(COOKIE_FILE):
             try:
-                with open(COOKIE_FILE, "rb") as f:
-                    cookies = pickle.load(f)
+                with open(COOKIE_FILE, "r", encoding="utf-8") as f:
+                    cookies = json.load(f)
                 dp.set.cookies(cookies)
                 print("  已加载登录缓存")
             except Exception:
@@ -211,8 +213,8 @@ def fetch_jobs(keyword, city="北京", max_pages=2):
 def _save_cookies(dp):
     try:
         cookies = dp.get.cookies()
-        with open(COOKIE_FILE, "wb") as f:
-            pickle.dump(cookies, f)
+        with open(COOKIE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cookies, f, ensure_ascii=False)
     except Exception:
         pass
 

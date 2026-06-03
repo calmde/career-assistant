@@ -5,6 +5,7 @@
 """
 import io
 import json
+import logging
 import os
 import secrets
 import sqlite3
@@ -17,6 +18,17 @@ from job_parser import parse_job_description, parse_resume
 from matcher import compute_match
 from resume_optimizer import generate_optimization
 from skill_navigator import generate_skill_plan
+
+# ============================================================
+# 日志配置
+# ============================================================
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger("career_assistant")
 
 # ============================================================
 # Flask init
@@ -218,7 +230,7 @@ def _do_crawl(task_id, keywords, city, max_pages, resume_text, data):
             all_jobs.append(j)
             c += 1
         if c:
-            print(f"  [{src}] +{c} 条")
+            logger.info("[%s] +%d 条", src, c)
 
     # ---- BOSS直聘 ----
     _tasks[task_id]["message"] = "正在打开浏览器访问BOSS直聘...\n（浏览器窗口会弹出，如需要登录请手动扫码，60秒超时）"
@@ -229,7 +241,7 @@ def _do_crawl(task_id, keywords, city, max_pages, resume_text, data):
             jobs = fetch_jobs(kw, city=city, max_pages=max_pages)
             _add(jobs, "BOSS直聘")
         except Exception as ex:
-            print(f"  BOSS直聘({kw}) 跳过: {type(ex).__name__}")
+            logger.info("BOSS直聘(%s) 跳过: %s", kw, type(ex).__name__)
         _time.sleep(1)
 
     _tasks[task_id]["progress"] = 60
@@ -241,7 +253,7 @@ def _do_crawl(task_id, keywords, city, max_pages, resume_text, data):
             from clean_data import clean_and_store
             clean_and_store(all_jobs)
         except Exception as ex:
-            print(f"  入库失败: {ex}")
+            logger.warning("入库失败: %s", ex)
 
     # ---- 回退到数据库（关键词 + 城市匹配）----
     if not all_jobs:
@@ -249,9 +261,11 @@ def _do_crawl(task_id, keywords, city, max_pages, resume_text, data):
         try:
             # 优先按城市 + 关键词筛选
             params = [f"%{city}%"]
-            kw_clauses = " OR ".join(["title LIKE ? OR skills LIKE ?" for _ in keywords])
+            conditions = []
             for kw in keywords:
+                conditions.append("(title LIKE ? OR skills LIKE ?)")
                 params.extend([f"%{kw}%", f"%{kw}%"])
+            kw_clauses = " OR ".join(conditions)
             sql = f"SELECT * FROM jobs WHERE city LIKE ? AND ({kw_clauses}) ORDER BY salary_avg DESC LIMIT 100"
             all_jobs = _query_db(sql, params)
             # 仅按城市回退
@@ -406,5 +420,27 @@ def search_jobs():
         return jsonify({"code": -1, "msg": str(e)}), 500
 
 
+# ============================================================
+# 错误处理
+# ============================================================
+
+@app.errorhandler(400)
+def _bad_request(e):
+    return jsonify({"code": -1, "msg": "请求参数错误"}), 400
+
+
+@app.errorhandler(404)
+def _not_found(e):
+    return jsonify({"code": -1, "msg": "资源不存在"}), 404
+
+
+@app.errorhandler(500)
+def _server_error(e):
+    logger.error("服务器内部错误: %s", e, exc_info=True)
+    return jsonify({"code": -1, "msg": "服务器内部错误，请稍后重试"}), 500
+
+
 if __name__ == "__main__":
-    app.run(debug=True, port=5000)
+    debug = os.getenv("FLASK_DEBUG", "0").lower() in ("1", "true", "yes")
+    port = int(os.getenv("FLASK_PORT", "5000"))
+    app.run(debug=debug, port=port)

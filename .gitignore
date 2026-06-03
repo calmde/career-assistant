@@ -32,6 +32,10 @@ desktop.ini
 # Project specific
 jobs.db
 .env
+boss_cookies.json
+boss_cookies.pkl
+llm_cache.db
+*.pkl
 
 # Claude Code (local settings)
 .claude/

@@ -1,11 +1,23 @@
-Flask==3.0.0
-requests==2.31.0
-beautifulsoup4==4.12.2
-pandas==2.1.4
-lxml==4.9.3
-PyPDF2==3.0.1
-selenium==4.11.2
+# Flask Web 框架
+Flask>=3.0.0
+
+# HTTP 请求 / HTML 解析
+requests>=2.31.0
+beautifulsoup4>=4.12.2
+lxml>=4.9.3
+
+# 简历 PDF 解析
+PyPDF2>=3.0.1
+
+# 浏览器自动化（BOSS直聘爬虫）
 DrissionPage>=4.0.0
+selenium>=4.11.2
+
+# 中文分词
 jieba>=0.42.1
+
+# LLM API 客户端（OpenAI 兼容接口）
 openai>=1.0.0
+
+# 环境变量管理
 python-dotenv>=1.0.0
