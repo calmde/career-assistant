@@ -74,7 +74,7 @@
 
 ```bash
 # 克隆
-git clone <your-fork-url>
+git clone https://github.com/calmde/career-assistant.git
 cd career-assistant
 
 # 安装依赖
