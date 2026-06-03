@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% block title %}上传简历 - 四步求职助手{% endblock %}
+{% block content %}
+
+<div class="step-indicator">
+    <div class="step active"><span class="step-num">1</span> 上传简历</div>
+    <div class="step"><span class="step-num">2</span> 岗位匹配</div>
+    <div class="step"><span class="step-num">3</span> 简历优化</div>
+    <div class="step"><span class="step-num">4</span> 技能规划</div>
+</div>
+
+<div class="card">
+    <h2>上传你的简历</h2>
+    <p style="color:var(--text-secondary);margin-bottom:20px">上传简历后，系统会自动根据你的技能关键词爬取相关岗位并进行匹配分析。</p>
+
+    <form id="upload-form">
+        <div class="upload-zone" onclick="document.getElementById('file-input').click()">
+            <input type="file" id="file-input" accept=".pdf,.txt">
+            <div id="file-hint">
+                <div style="font-size:48px;margin-bottom:8px">&#x1F4C4;</div>
+                <div>点击选择简历文件</div>
+                <div style="color:var(--text-secondary);font-size:13px;margin-top:4px">支持 PDF / TXT</div>
+            </div>
+            <div id="file-name" style="display:none;font-weight:600;color:var(--primary)"></div>
+        </div>
+
+        <div class="form-row" style="margin-top:20px">
+            <div class="form-group">
+                <label>目标城市</label>
+                <input type="text" id="city" value="北京" placeholder="如：北京、上海、深圳">
+            </div>
+            <div class="form-group">
+                <label>爬取页数（每关键词）</label>
+                <select id="max-pages">
+                    <option value="1">1 页（快速）</option>
+                    <option value="2" selected>2 页（推荐）</option>
+                    <option value="3">3 页（较多）</option>
+                </select>
+            </div>
+        </div>
+
+        <button type="submit" class="btn btn-primary" id="submit-btn" style="margin-top:16px">开始分析</button>
+        <span id="submit-status" style="margin-left:12px;color:var(--text-secondary);font-size:14px"></span>
+    </form>
+</div>
+
+<div id="progress-card" class="card" style="display:none">
+    <h3>正在爬取岗位...</h3>
+    <div class="progress-bar"><div class="progress-fill" id="progress-fill" style="width:0%"></div></div>
+    <p id="progress-message" style="color:var(--text-secondary)"></p>
+</div>
+
+<div id="result-card" class="card" style="display:none"></div>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+var pollTimer = null;
+
+document.getElementById('file-input').addEventListener('change', function(e) {
+    var file = e.target.files[0];
+    if (!file) return;
+    document.getElementById('file-hint').style.display = 'none';
+    var fn = document.getElementById('file-name');
+    fn.style.display = 'block';
+    fn.textContent = '已选择: ' + file.name;
+});
+
+document.getElementById('upload-form').addEventListener('submit', function(e) {
+    e.preventDefault();
+    var fileInput = document.getElementById('file-input');
+    if (!fileInput.files[0]) { alert('请先选择简历文件'); return; }
+
+    var formData = new FormData();
+    formData.append('file', fileInput.files[0]);
+    formData.append('city', document.getElementById('city').value);
+    formData.append('max_pages', document.getElementById('max-pages').value);
+
+    var btn = document.getElementById('submit-btn');
+    var status = document.getElementById('submit-status');
+    btn.disabled = true;
+    status.textContent = '正在上传...';
+
+    fetch('/api/upload', { method: 'POST', body: formData })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.code !== 0) {
+                btn.disabled = false;
+                status.textContent = '';
+                alert(data.msg);
+                return;
+            }
+            status.textContent = '上传成功！关键词: ' + (data.data.keywords||[]).join(', ');
+            document.getElementById('progress-card').style.display = 'block';
+            pollTask(data.data.task_id);
+        })
+        .catch(function(err) {
+            btn.disabled = false;
+            status.textContent = '';
+            alert('请求失败: ' + err.message);
+        });
+});
+
+function pollTask(taskId) {
+    pollTimer = setInterval(function() {
+        fetch('/api/crawl-status?task_id=' + taskId)
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (data.code !== 0) return;
+                var d = data.data;
+                document.getElementById('progress-fill').style.width = d.progress + '%';
+                document.getElementById('progress-message').textContent = d.message;
+
+                if (d.status === 'done') {
+                    clearInterval(pollTimer);
+                    document.getElementById('submit-btn').disabled = false;
+                    document.getElementById('progress-card').style.display = 'none';
+                    showResult(d);
+                } else if (d.status === 'error') {
+                    clearInterval(pollTimer);
+                    document.getElementById('submit-btn').disabled = false;
+                    document.getElementById('progress-message').textContent = '出错: ' + d.message;
+                }
+            });
+    }, 2000);
+}
+
+function showResult(d) {
+    var card = document.getElementById('result-card');
+    card.style.display = 'block';
+    var html = '<h3>&#x2705; 分析完成！</h3>';
+    html += '<p>识别关键词: <strong>' + (d.keywords||[]).join(', ') + '</strong></p>';
+    html += '<p>共爬取 <strong>' + d.job_count + '</strong> 条岗位，成功匹配 <strong>' + d.match_count + '</strong> 条</p>';
+    html += '<p>最佳匹配分数: <strong style="font-size:20px;color:var(--primary)">' + d.top_score + '</strong> 分</p>';
+    html += '<div style="margin-top:16px">';
+    html += '<a href="/jobs" class="btn btn-outline">浏览全部岗位</a> ';
+    html += '<a href="/match/0" class="btn btn-primary">查看最佳匹配</a>';
+    html += '</div>';
+    html += '<p style="margin-top:12px;color:var(--text-secondary);font-size:13px">';
+    html += '流程：查看匹配详情 → 简历优化建议 → 技能提升计划';
+    html += '</p>';
+    card.innerHTML = html;
+}
+</script>
+{% endblock %}

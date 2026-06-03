@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block title %}岗位浏览 - 四步求职助手{% endblock %}
+{% block content %}
+
+<div class="card">
+    <h2>岗位浏览与筛选</h2>
+    <div class="filter-panel" style="display:flex;flex-wrap:wrap;gap:12px;margin-top:12px">
+        <input type="text" id="keyword" placeholder="关键词" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;width:160px">
+        <input type="text" id="city-filter" placeholder="城市" value="{{ city }}" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;width:100px">
+        <input type="number" id="salary_min" placeholder="最低薪资" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;width:110px">
+        <input type="number" id="salary_max" placeholder="最高薪资" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;width:110px">
+        <input type="text" id="company" placeholder="公司名" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px;width:140px">
+        <select id="education" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px">
+            <option value="">学历不限</option>
+            <option>大专</option><option>本科</option><option>硕士</option><option>博士</option>
+        </select>
+        <select id="experience" style="padding:8px 12px;border:1px solid var(--border);border-radius:6px">
+            <option value="">经验不限</option>
+            <option>应届</option><option>1-3年</option><option>3-5年</option><option>5-10年</option>
+        </select>
+        <button class="btn btn-primary btn-sm" onclick="searchJobs()">搜索</button>
+    </div>
+</div>
+
+<div class="card" style="overflow-x:auto">
+    <table id="job-table">
+        <thead>
+            <tr>
+                <th>职位</th><th>公司</th><th>阶段</th><th>薪资</th><th>城市</th><th>经验</th><th>学历</th><th>招聘者</th>
+            </tr>
+        </thead>
+        <tbody id="table-body"></tbody>
+    </table>
+</div>
+
+{% endblock %}
+{% block extra_js %}
+<script>
+function searchJobs() {
+    const params = new URLSearchParams();
+    const add = (k, id) => { const v = document.getElementById(id).value.trim(); if(v) params.append(k, v); };
+    add('keyword', 'keyword');
+    add('city', 'city-filter');
+    add('salary_min', 'salary_min');
+    add('salary_max', 'salary_max');
+    add('company', 'company');
+    add('education', 'education');
+    add('experience', 'experience');
+
+    fetch('/api/jobs?' + params.toString())
+        .then(r => r.json())
+        .then(data => {
+            const tbody = document.getElementById('table-body');
+            if (data.code !== 0 || !data.data.length) {
+                tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;color:var(--text-secondary);padding:32px">没有找到匹配的职位</td></tr>';
+                return;
+            }
+            tbody.innerHTML = data.data.map((j, i) => `
+                <tr>
+                    <td>${esc(j.title)}</td>
+                    <td>${esc(j.company)}</td>
+                    <td>${esc(j.company_stage || '')}</td>
+                    <td style="color:var(--warning);font-weight:600">${esc(j.salary || '面议')}</td>
+                    <td>${esc(j.city)}</td>
+                    <td>${esc(j.experience)}</td>
+                    <td>${esc(j.education)}</td>
+                    <td>${esc(j.contact_person || '')}${j.contact_title ? ' <small>(' + esc(j.contact_title) + ')</small>' : ''}</td>
+                </tr>
+            `).join('');
+        });
+}
+
+function esc(t) { if(!t) return ''; return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+window.onload = () => searchJobs();
+</script>
+{% endblock %}

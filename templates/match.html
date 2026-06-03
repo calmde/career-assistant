@@ -1,0 +1,73 @@
+{% extends "base.html" %}
+{% block title %}匹配详情 - 四步求职助手{% endblock %}
+{% block content %}
+
+{% if error %}
+<div class="card"><p style="color:var(--danger)">{{ error }}</p><a href="/" class="btn btn-outline">返回首页</a></div>
+{% else %}
+<div class="step-indicator">
+    <div class="step"><span class="step-num">1</span> 上传完成</div>
+    <div class="step active"><span class="step-num">2</span> 岗位匹配</div>
+    <div class="step"><span class="step-num">3</span> 简历优化</div>
+    <div class="step"><span class="step-num">4</span> 技能规划</div>
+</div>
+
+{% set job = match.job_raw %}
+<div class="card">
+    <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap">
+        <div class="score-circle {% if match.score >= 70 %}score-high{% elif match.score >= 40 %}score-mid{% else %}score-low{% endif %}">
+            {{ match.score }}
+        </div>
+        <div style="flex:1">
+            <h2 style="margin:0">{{ job.title }}</h2>
+            <p style="color:var(--text-secondary);margin:4px 0">{{ job.company }} &middot; {{ job.salary or '薪资未标注' }} &middot; {{ job.city }}</p>
+            <p style="color:var(--text-secondary);font-size:13px">经验: {{ job.experience or '不限' }} &middot; 学历: {{ job.education or '不限' }}</p>
+        </div>
+    </div>
+
+    <div class="flex flex-wrap" style="margin-top:20px;gap:12px">
+        <div style="flex:1;min-width:120px"><strong>技能匹配</strong><br>{{ (match.skill_ratio * 100)|int }}%</div>
+        <div style="flex:1;min-width:120px"><strong>经验匹配</strong><br>{{ (match.experience_ratio * 100)|int }}%</div>
+        <div style="flex:1;min-width:120px"><strong>学历匹配</strong><br>{{ (match.education_ratio * 100)|int }}%</div>
+        {% if match.role_category_ratio is defined %}<div style="flex:1;min-width:120px"><strong>角色匹配</strong><br>{{ (match.role_category_ratio * 100)|int }}%</div>{% endif %}
+    </div>
+</div>
+
+<div class="flex">
+    <div class="card col">
+        <div class="section-title">匹配技能</div>
+        {% for s in match.matched_skills %}<span class="tag tag-match">{{ s }}</span>{% endfor %}
+        {% if not match.matched_skills %}<p style="color:var(--text-secondary)">无</p>{% endif %}
+    </div>
+    <div class="card col">
+        <div class="section-title">缺失技能</div>
+        {% for s in match.missing_skills %}<span class="tag tag-miss">{{ s }}</span>{% endfor %}
+        {% if not match.missing_skills %}<p style="color:var(--success)">无缺失技能!</p>{% endif %}
+    </div>
+</div>
+
+{% if match.highlights %}
+<div class="card">
+    <div class="section-title">亮点</div>
+    <ul style="padding-left:20px">{% for h in match.highlights %}<li style="color:var(--success)">{{ h }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+{% if match.risks %}
+<div class="card">
+    <div class="section-title">风险</div>
+    <ul style="padding-left:20px">{% for r in match.risks %}<li style="color:var(--danger)">{{ r }}</li>{% endfor %}</ul>
+</div>
+{% endif %}
+
+<div class="card">
+    <div style="display:flex;gap:12px;flex-wrap:wrap">
+        {% if job_index > 0 %}<a href="/match/{{ job_index - 1 }}" class="btn btn-outline btn-sm">上一个</a>{% endif %}
+        {% if job_index + 1 < total %}<a href="/match/{{ job_index + 1 }}" class="btn btn-outline btn-sm">下一个</a>{% endif %}
+        <a href="/optimize/{{ job_index }}" class="btn btn-primary">优化简历 →</a>
+        <a href="/skill-plan/{{ job_index }}" class="btn btn-success">技能计划 →</a>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}

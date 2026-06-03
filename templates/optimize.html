@@ -1,0 +1,99 @@
+{% extends "base.html" %}
+{% block title %}简历优化 - 四步求职助手{% endblock %}
+{% block content %}
+
+{% if error %}
+<div class="card"><p style="color:var(--danger)">{{ error }}</p><a href="/" class="btn btn-outline">返回首页</a></div>
+{% else %}
+<div class="step-indicator">
+    <div class="step"><span class="step-num">1</span> 上传完成</div>
+    <div class="step"><span class="step-num">2</span> 匹配完成</div>
+    <div class="step active"><span class="step-num">3</span> 简历优化</div>
+    <div class="step"><span class="step-num">4</span> 技能规划</div>
+</div>
+
+<div class="card">
+    <h2>简历优化建议 — {{ job.title }} @ {{ job.company }}</h2>
+    <p style="color:var(--text-secondary)">
+        模式: <span class="badge {% if optimization.used_llm %}badge-llm{% else %}badge-local{% endif %}">
+            {{ 'LLM 智能优化' if optimization.used_llm else '本地规则建议' }}
+        </span>
+    </p>
+</div>
+
+<!-- 关键词建议 -->
+{% set kw = optimization.keyword_suggestions %}
+{% if kw %}
+<div class="card">
+    <div class="section-title">关键词布局建议</div>
+    <table>
+        <thead><tr><th>关键词</th><th>放置位置</th><th>优先级</th><th>建议</th></tr></thead>
+        <tbody>
+        {% for k in kw %}
+        <tr>
+            <td><strong>{{ k.keyword }}</strong></td>
+            <td>{{ k.placement }}</td>
+            <td><span class="badge {% if k.priority == '高' %}badge-core{% else %}badge-nice{% endif %}">{{ k.priority }}</span></td>
+            <td>{{ k.suggestion }}</td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endif %}
+
+<!-- 量化改写 -->
+{% set qr = optimization.quantified_rewrites %}
+{% if qr %}
+<div class="card">
+    <div class="section-title">项目描述量化改写</div>
+    {% for r in qr %}
+    <div style="margin-bottom:16px;padding:12px;background:#fafafa;border-radius:8px">
+        <p style="color:var(--text-secondary)"><strong>原文:</strong> {{ r.original[:200] }}</p>
+        <p style="color:var(--success)"><strong>建议:</strong> {{ r.rewritten[:300] }}</p>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- 自我介绍 -->
+{% set si = optimization.self_intro_versions %}
+{% if si %}
+<div class="card">
+    <div class="section-title">多版本自我介绍</div>
+    {% for v in si %}
+    <div style="margin-bottom:16px;padding:12px;border-left:3px solid var(--primary);background:#fafafa">
+        <strong>{{ v.target_role }}:</strong>
+        <p>{{ v.intro }}</p>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}
+
+<!-- ATS检测 -->
+{% set ats = optimization.ats_check %}
+{% if ats %}
+<div class="card">
+    <div class="section-title">ATS 友好度检测</div>
+    {% if ats.keyword_density %}
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px">
+        {% for kw, status in ats.keyword_density.items() %}
+        <span class="tag {% if status == '已覆盖' %}tag-match{% else %}tag-miss{% endif %}">{{ kw }}: {{ status }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% for issue in ats.issues %}
+    <p style="margin:4px 0">&#8226; {{ issue }}</p>
+    {% endfor %}
+</div>
+{% endif %}
+
+<div class="card">
+    <div style="display:flex;gap:12px">
+        <a href="/match/{{ job_index }}" class="btn btn-outline">← 返回匹配</a>
+        <a href="/skill-plan/{{ job_index }}" class="btn btn-success">技能计划 →</a>
+    </div>
+</div>
+{% endif %}
+
+{% endblock %}
