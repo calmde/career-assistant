@@ -47,7 +47,7 @@
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/<你的用户名>/career-assistant.git
+git clone https://github.com/calmde/career-assistant.git
 cd career-assistant
 
 # 2. 创建虚拟环境
